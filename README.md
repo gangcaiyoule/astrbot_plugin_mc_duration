@@ -29,11 +29,11 @@ rcon.port=25575
 
 | 配置项 | 说明 | 默认值 |
 | :--- | :--- | :--- |
-| `server_ip` | Minecraft 服务器 IP 地址 | `默认127.0.0.1` |
-| `server_port` | 游戏端口 (仅作展示) | `默认25565(可选)` |
-| `rcon_port` | **RCON 端口** (必须与服务端一致) | `默认25575` |
+| `server_ip` | Minecraft 服务器 IP 地址 | `127.0.0.1` |
+| `server_port` | 游戏端口 (仅作展示) | `25565(可选)` |
+| `rcon_port` | **RCON 端口** (必须与服务端一致) | `25575` |
 | `rcon_password` | **RCON 密码** (必须与服务端一致) | `""` |
-| `interval` | 监控轮询间隔 (秒) | `默认30` |
+| `interval` | 监控轮询间隔 (秒) | `30` |
 | `auto_start` | AstrBot 启动时自动开始监控 | `True` |
 
 ## 💻 指令列表
