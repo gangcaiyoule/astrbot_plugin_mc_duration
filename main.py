@@ -2,12 +2,14 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 import asyncio
-import json
-import os
 import time
 import datetime
-import struct
-from typing import Dict, List, Optional
+import os
+from typing import Optional
+
+from .rcon import MCRcon
+from .storage import Storage
+from .utils import seconds_to_text, format_time
 
 @register("astrbot_plugin_mc_duration", "YourName", "MC时长统计插件", "1.2.0")
 class MCDurationPlugin(Star):
@@ -16,161 +18,28 @@ class MCDurationPlugin(Star):
         self.config = config
         
         # 配置处理
-        self.server_ip = self.config.get("server_ip")
-        if not self.server_ip:
-            self.server_ip = "127.0.0.1"
+        self.server_ip = self.config.get("server_ip", "127.0.0.1")
         self.server_port = int(self.config.get("server_port", 25565))
         self.rcon_port = int(self.config.get("rcon_port", 25575))
         self.rcon_password = self.config.get("rcon_password", "")
-
         self.interval = int(self.config.get("interval", 30))
-
         self.auto_start = self.config.get("auto_start", True)
 
+        # 初始化组件
+        # 建议将数据存放在 data/plugin_data/ 目录下，避免插件更新导致数据丢失
+        # 定位到 data/ 目录 (假设插件在 data/plugins/plugin_name/)
+        data_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        data_dir = os.path.join(data_root, "plugin_data", "astrbot_plugin_mc_duration")
+        
+        self.storage = Storage(data_dir)
+        self.rcon = MCRcon(self.server_ip, self.server_port, self.rcon_password, self.rcon_port)
         
         self.tracking_task: Optional[asyncio.Task] = None
-        
-        # 修正路径: data/plugins/plugin_name/data/data.json
-        self.data_dir = os.path.join(os.path.dirname(__file__), "data")
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir, exist_ok=True)
-        self.data_path = os.path.join(self.data_dir, "data.json")
-        
-        # 数据结构: 
-        # { 
-        #   "PlayerName": { 
-        #       "total_seconds": 0, 
-        #       "sessions": [ {"start": 170000, "end": 170060}, ... ] 
-        #   } 
-        # }
-        self.player_data: Dict[str, Dict] = {} 
-        self.daily_meta: Dict[str, Dict] = {}
-        # 运行时缓存
-        self.current_online_names: List[str] = []
-        self.session_start_cache: Dict[str, float] = {}
         self.last_check_time = 0.0
 
-        self._load_data()
         # 自动启动
         if self.auto_start:
             asyncio.create_task(self._start_monitor())
-
-
-
-    # ==========================
-    # 数据管理
-    # ==========================
-
-    def _load_data(self):
-        if os.path.exists(self.data_path):
-            try:
-                with open(self.data_path, 'r', encoding='utf-8') as f:
-                    raw_data = json.load(f)
-                    # Migrate from old format if necessary
-                    if "players" in raw_data:
-                        self.player_data = raw_data["players"]
-                        self.daily_meta = raw_data.get("daily_meta", {})
-                    else:
-                        self.player_data = raw_data
-                        self.daily_meta = {}
-            except Exception as e:
-                logger.error(f"MC状态获取失败: {e}")
-
-    def _save_data(self):
-        try:
-            with open(self.data_path, 'w', encoding='utf-8') as f:
-                payload = {
-                    "players": self.player_data,
-                    "daily_meta": self.daily_meta
-                }
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"MC统计数据保存失败: {e}")
-
-    def _format_time(self, timestamp: float, full=False) -> str:
-        fmt = '%Y-%m-%d %H:%M' if full else '%H:%M'
-        return datetime.datetime.fromtimestamp(timestamp).strftime(fmt)
-    def _seconds_to_text(self, seconds: int) -> str:
-        """把秒数转换成中文可读文本"""
-        m, s = divmod(seconds, 60)
-        h, m = divmod(m, 60)
-        d, h = divmod(h, 24)
-        
-        parts = []
-        if d > 0: parts.append(f"{int(d)}天")
-        if h > 0: parts.append(f"{int(h)}小时")
-        if m > 0: parts.append(f"{int(m)}分")
-        if not parts: return "少于1分钟"
-        return "".join(parts)
-
-    # ==========================
-    # RCON Core
-    # ==========================
-
-    async def _rcon_command(self, command: str) -> Optional[str]:
-        """Send a command via RCON and return the response."""
-        reader, writer = None, None
-        try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(self.server_ip, self.rcon_port), timeout=5.0
-            )
-
-            async def send_packet(pkt_type: int, payload: str, pkt_id: int):
-                data = struct.pack("<ii", pkt_id, pkt_type) + payload.encode('utf-8') + b"\x00\x00"
-                writer.write(struct.pack("<i", len(data)) + data)
-                await writer.drain()
-
-            async def read_packet():
-                length_pkt = await reader.readexactly(4)
-                length = struct.unpack("<i", length_pkt)[0]
-                data = await reader.readexactly(length)
-                pkt_id, pkt_type = struct.unpack("<ii", data[:8])
-                return pkt_id, pkt_type, data[8:-2].decode('utf-8')
-
-            # 1. Auth
-            await send_packet(3, self.rcon_password, 1)
-            auth_id, _, _ = await read_packet()
-            if auth_id == -1:
-                logger.error(f"[MCDuration] RCON 认证失败: 密码错误。 IP: {self.server_ip}")
-                return None
-
-            # 2. Command
-            await send_packet(2, command, 2)
-            _, _, response = await read_packet()
-            return response
-        except asyncio.TimeoutError:
-            logger.error(f"[MCDuration] RCON 连接超时，请检查防火墙/安全组 25575 端口是否开放。")
-            return None
-        except ConnectionRefusedError:
-            logger.error(f"[MCDuration] RCON 连接被拒绝，请检查服端 server.properties 中 enable-rcon 是否为 true。")
-            return None
-        except Exception as e:
-            logger.error(f"[MCDuration] RCON 运行异常: {str(e)}")
-            return None
-
-        finally:
-            if writer:
-                writer.close()
-                await writer.wait_closed()
-
-    async def _fetch_players(self) -> Optional[List[str]]:
-        """Fetch player list using RCON /list."""
-        resp = await self._rcon_command("list")
-        if not resp:
-            return None
-        
-        # Vanilla/Paper output: "There are X of Y players online: name1, name2"
-        # Or: "There are X players online: name1, name2"
-        if ":" not in resp:
-            return []
-        
-        names_str = resp.split(":", 1)[1].strip()
-        if not names_str:
-            return []
-            
-        # Clean up names (remove color codes if any, though RCON usually strips them)
-        names = [n.strip() for n in names_str.split(",")]
-        return [n for n in names if n]
 
     # ==========================
     # 核心监控逻辑
@@ -178,8 +47,7 @@ class MCDurationPlugin(Star):
     
     async def _start_monitor(self):
         if self.tracking_task and not self.tracking_task.done(): return
-        # 修正：日志显示 RCON 连接信息
-        logger.info(f"[MCDuration] 监控启动: {self.server_ip} (RCON:{self.rcon_port} / Game:{self.server_port})")
+        logger.info(f"[MCDuration] 监控启动: {self.server_ip}")
         self.tracking_task = asyncio.create_task(self._monitor_loop())
 
     async def _monitor_loop(self):
@@ -190,51 +58,36 @@ class MCDurationPlugin(Star):
                 delta = min(curr_time - self.last_check_time, self.interval * 2)
                 self.last_check_time = curr_time
                 
-                players = await self._fetch_players()
-                day_key = datetime.datetime.now().strftime("%Y-%m-%d")
+                players = await self.rcon.fetch_players()
 
                 if players is not None:
-                    if day_key not in self.daily_meta:
-                        self.daily_meta[day_key] = {"first_join": None, "last_leave": None}
+                    # 更新在线时长 & 处理上线逻辑
+                    self.storage.update_playtime(players, delta, curr_time)
 
-                    for p in players:
-                        if p not in self.player_data:
-                            self.player_data[p] = {"total_seconds": 0, "sessions": []}
-                        
-                        # Accumulate time
-                        self.player_data[p]["total_seconds"] += int(delta)
+                    # 处理下线逻辑
+                    # 找出在 cache 中但不在当前 players 列表中的人
+                    online_in_cache = list(self.storage.session_start_cache.keys())
+                    left_players = [p for p in online_in_cache if p not in players]
+                    
+                    if left_players:
+                        self.storage.handle_disconnects(left_players, curr_time)
 
-                        # Logic: First Join of the day
-                        if p not in self.current_online_names:
-                            self.session_start_cache[p] = curr_time
-                            if not self.daily_meta[day_key]["first_join"]:
-                                self.daily_meta[day_key]["first_join"] = {"player": p, "time": curr_time}
-
-                    # Logic: Leaves
-                    for p in list(self.current_online_names):
-                        if p not in players:
-                            start_ts = self.session_start_cache.pop(p, None)
-                            if start_ts:
-                                self.player_data[p]["sessions"].append({"start": int(start_ts), "end": int(curr_time)})
-                                # Logic: Last Leave of the day
-                                self.daily_meta[day_key]["last_leave"] = {"player": p, "time": curr_time}
-
-                    self.current_online_names = players
-                    self._save_data()
+                    self.storage.save_data()
                 else:
-                    logger.warning(f"[MCDuration] 无法连接到 RCON 服务器或获取玩家列表失败: {self.server_ip}:{self.rcon_port}")
-                    for p in list(self.current_online_names):
-                        start_ts = self.session_start_cache.pop(p, None)
-                        if start_ts:
-                            self.player_data[p]["sessions"].append({"start": int(start_ts), "end": int(curr_time)})
-                            self.daily_meta[day_key]["last_leave"] = {"player": p, "time": curr_time}
-                    self.current_online_names = []
+                    logger.warning(f"[MCDuration] RCON 获取玩家列表失败")
+                    # 如果连接失败，假设所有当前在线的人都下线了（为了数据安全，防止无限累计时间）
+                    online_players = list(self.storage.session_start_cache.keys())
+                    if online_players:
+                        self.storage.handle_disconnects(online_players, curr_time)
 
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError: break
             except Exception as e:
                 logger.error(f"[MCDuration] Loop error: {e}")
+                import traceback
+                traceback.print_exc()
                 await asyncio.sleep(self.interval)
+
     # ==========================
     # 指令
     # ==========================
@@ -245,16 +98,19 @@ class MCDurationPlugin(Star):
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
         
         monthly_stats = []
-        for name, data in self.player_data.items():
+        all_players = self.storage.get_all_players()
+        
+        for name, data in all_players.items():
             month_sec = 0
-            # Calculate from past sessions in this month
+            # History sessions
             for s in data.get("sessions", []):
                 if s["start"] >= month_start:
                     month_sec += (s["end"] - s["start"])
             
-            # Add current ongoing session
-            if name in self.current_online_names:
-                start = self.session_start_cache.get(name, curr_time := time.time())
+            # Current session
+            start = self.storage.get_session_start(name)
+            if start:
+                curr_time = time.time()
                 if start >= month_start:
                     month_sec += (curr_time - start)
                 elif curr_time >= month_start:
@@ -270,8 +126,8 @@ class MCDurationPlugin(Star):
         monthly_stats.sort(key=lambda x: x[1], reverse=True)
         msg = [f"📅 **{now.month}月赛季魔人榜** 📅"]
         for i, (name, sec) in enumerate(monthly_stats[:10], 1):
-            status = "👑" if name in self.current_online_names else "🌙"
-            msg.append(f"{i}. {status} {name}: {self._seconds_to_text(int(sec))}")
+            status = "👑" if self.storage.get_session_start(name) else "🌙"
+            msg.append(f"{i}. {status} {name}: {seconds_to_text(int(sec))}")
         
         yield event.plain_result("\n".join(msg))
 
@@ -279,7 +135,7 @@ class MCDurationPlugin(Star):
     async def cmd_daily(self, event: AstrMessageEvent):
         '''今日荣誉榜 (早起/熬夜魔人)'''
         day_key = datetime.datetime.now().strftime("%Y-%m-%d")
-        meta = self.daily_meta.get(day_key)
+        meta = self.storage.get_daily_meta(day_key)
         
         if not meta or (not meta["first_join"] and not meta["last_leave"]):
             yield event.plain_result("📅 今日服务器尚无进出记录。")
@@ -288,17 +144,18 @@ class MCDurationPlugin(Star):
         msg = [f"🌅 **今日方块荣誉 ({day_key})**"]
         if meta["first_join"]:
             p, t = meta["first_join"]["player"], meta["first_join"]["time"]
-            msg.append(f"🐔 **早起魔人**: {p} ({self._format_time(t)})")
+            msg.append(f"🐔 **早起魔人**: {p} ({format_time(t)})")
         else:
             msg.append("🐔 **早起魔人**: 暂无")
             
         if meta["last_leave"]:
             p, t = meta["last_leave"]["player"], meta["last_leave"]["time"]
-            msg.append(f"🦉 **熬夜魔人**: {p} ({self._format_time(t)})")
+            msg.append(f"🦉 **熬夜魔人**: {p} ({format_time(t)})")
         else:
             msg.append("🦉 **熬夜魔人**: 暂无")
             
         yield event.plain_result("\n".join(msg))
+
     @filter.command("mc_stat_on")
     async def cmd_on(self, event: AstrMessageEvent):
         '''开启统计 (Admin)'''
@@ -307,7 +164,7 @@ class MCDurationPlugin(Star):
             return
             
         if not self.tracking_task or self.tracking_task.done():
-            self.last_check_time = time.time() # Reset clock
+            self.last_check_time = time.time()
             asyncio.create_task(self._start_monitor())
             yield event.plain_result(f"✅ 监控已开启 (interval={self.interval}s)")
         else:
@@ -331,30 +188,29 @@ class MCDurationPlugin(Star):
         now = datetime.datetime.now()
         start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
 
+        # 计算逻辑：storage 里有 sessions 的人 + session_start_cache 里的人 (当前在线)
         today_active_players = set()
+        all_players = self.storage.get_all_players()
 
-        for name, data in self.player_data.items():
+        for name, data in all_players.items():
             sessions = data.get("sessions", [])
-
-            # 1）今天有上线记录的人
             for s in sessions:
                 if s["start"] >= start_of_day:
                     today_active_players.add(name)
                     break
-
-            # 2）今天仍在线的人（还没写入 session）
-            if name in self.current_online_names:
+            
+            if self.storage.get_session_start(name):
                 today_active_players.add(name)
 
         today_count = len(today_active_players)
 
-        '''在线时长排行榜(前10)'''
-        if not self.player_data:
+        # 排行榜
+        if not all_players:
             yield event.plain_result("📊 暂无数据")
             return
 
         sorted_players = sorted(
-            self.player_data.items(), 
+            all_players.items(), 
             key=lambda x: x[1].get("total_seconds", 0), 
             reverse=True
         )
@@ -362,25 +218,22 @@ class MCDurationPlugin(Star):
         msg = ["🏆 **MC魔人排行榜**"]
         for i, (name, data) in enumerate(sorted_players[:10], 1):
             sec = data.get("total_seconds", 0)
-            status = "👑" if name in self.current_online_names else "🐶"
-            msg.append(f"{i}. {status} {name}: {self._seconds_to_text(sec)}")
-            # ===== 彩蛋评语系统 =====
+            status = "👑" if self.storage.get_session_start(name) else "🐶"
+            msg.append(f"{i}. {status} {name}: {seconds_to_text(sec)}")
+        
+        # 彩蛋
         online_count = today_count
-
         if online_count == 0:
             msg.append("\n🌙 服务器空空如也，连苦力怕都开始emo了。")
-
         elif online_count == 1:
             msg.append("\n🧑‍💻 现在知道卷王是怎么练成的吧？一个人撑起整个服务器。")
-
         elif online_count == 2:
             msg.append("\n💞 我能想到最浪漫的事，就是在MC里和你一起挖到天荒地老。")
-
         elif online_count < 5:
             msg.append("\n✨ 小团体的快乐，属于你们的方块宇宙。")
-
         else:
             msg.append("\n🔥 大型网吧现场，全员不睡觉是吧？")
+            
         yield event.plain_result("\n".join(msg))
 
     @filter.command("mc_me")
@@ -389,12 +242,12 @@ class MCDurationPlugin(Star):
         if not player:
             player = event.get_sender_name()
 
-        data = self.player_data.get(player)
+        data = self.storage.get_player(player)
         if not data:
             yield event.plain_result(f"❌ 未找到玩家 {player} 的记录")
             return
 
-        total = self._seconds_to_text(data.get("total_seconds", 0))
+        total = seconds_to_text(data.get("total_seconds", 0))
         sessions = data.get("sessions", [])
         
         # 筛选“今天”的记录
@@ -404,14 +257,14 @@ class MCDurationPlugin(Star):
         
         for s in sessions:
             if s["start"] >= start_of_day:
-                s_str = self._format_time(s["start"])
-                e_str = self._format_time(s["end"])
+                s_str = format_time(s["start"])
+                e_str = format_time(s["end"])
                 today_sessions.append(f"{s_str}~{e_str}")
 
-        # 如果当前在线，加一个“进行中”
-        if player in self.current_online_names:
-            start_ts = self.session_start_cache.get(player, time.time())
-            s_str = self._format_time(start_ts)
+        # 如果当前在线
+        start_ts = self.storage.get_session_start(player)
+        if start_ts:
+            s_str = format_time(start_ts)
             today_sessions.append(f"{s_str}~现在")
 
         msg = [f"👤 **{player} 的统计**"]
@@ -422,21 +275,16 @@ class MCDurationPlugin(Star):
         else:
             msg.append("📅 今日暂无记录")
 
-        # ===== 玩家评语系统 =====
+        # 评语
         join_times = len(today_sessions)
-
         if join_times >= 5:
             comment = "🚪 你这是把服务器当旋转门啊，进进出出比末影人还快。"
-
         elif join_times >= 3:
             comment = "⚡ 虽然我不够持久，但我胜在进出速度快！"
-
         elif join_times == 2:
             comment = "🎮 今天状态不错，属于是‘进退有度’的成熟玩家。"
-
         elif join_times == 1:
             comment = "🪵 哥玩的就是持久，一上线就是一整段史诗。"
-
         else:
             comment = "👻 今天你还没出现…服务器都在想你。"
 
@@ -445,4 +293,4 @@ class MCDurationPlugin(Star):
 
     async def terminate(self):
         if self.tracking_task: self.tracking_task.cancel()
-        self._save_data()
+        self.storage.save_data()
