@@ -1,0 +1,26 @@
+{
+  "server_ip": {
+    "description": "服务器地址",
+    "type": "string",
+    "hint": "Minecraft 服务器的 IP 地址或域名",
+    "default": "127.0.0.1"
+  },
+  "server_port": {
+    "description": "服务器端口",
+    "type": "int",
+    "hint": "Java 版默认 25565，基岩版通常不支持 Ping 协议请注意",
+    "default": 25565
+  },
+  "interval": {
+    "description": "监控间隔(秒)",
+    "type": "int",
+    "hint": "轮询服务器的时间间隔，建议 30-60 秒",
+    "default": 30
+  },
+  "auto_start": {
+    "description": "自动启动监控",
+    "type": "bool",
+    "hint": "插件加载时是否自动开启后台统计任务",
+    "default": true
+  }
+}
