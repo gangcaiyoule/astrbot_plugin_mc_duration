@@ -273,6 +273,27 @@ class MCDurationPlugin(Star):
 
     @filter.command("mc_rank")
     async def cmd_rank(self, event: AstrMessageEvent):
+        # ===== 今日活跃玩家统计 =====
+        now = datetime.datetime.now()
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+        today_active_players = set()
+
+        for name, data in self.player_data.items():
+            sessions = data.get("sessions", [])
+
+            # 1）今天有上线记录的人
+            for s in sessions:
+                if s["start"] >= start_of_day:
+                    today_active_players.add(name)
+                    break
+
+            # 2）今天仍在线的人（还没写入 session）
+            if name in self.current_online_names:
+                today_active_players.add(name)
+
+        today_count = len(today_active_players)
+
         '''在线时长排行榜(前10)'''
         if not self.player_data:
             yield event.plain_result("📊 暂无数据")
@@ -290,7 +311,7 @@ class MCDurationPlugin(Star):
             status = "👑" if name in self.current_online_names else "🐶"
             msg.append(f"{i}. {status} {name}: {self._seconds_to_text(sec)}")
             # ===== 彩蛋评语系统 =====
-        online_count = len(self.current_online_names)
+        online_count = today_count
 
         if online_count == 0:
             msg.append("\n🌙 服务器空空如也，连苦力怕都开始emo了。")
