@@ -11,6 +11,18 @@
     "hint": "Java 版默认 25565，基岩版通常不支持 Ping 协议请注意",
     "default": 25565
   },
+  "rcon_port": {
+    "description": "RCON 端口",
+    "type": "int",
+    "hint": "server.properties 中的 rcon.port，默认 25575",
+    "default": 25575
+  },
+  "rcon_password": {
+    "description": "RCON 密码",
+    "type": "string",
+    "hint": "server.properties 中的 rcon.password",
+    "default": ""
+  },
   "interval": {
     "description": "监控间隔(秒)",
     "type": "int",
