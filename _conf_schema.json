@@ -34,5 +34,17 @@
     "type": "bool",
     "hint": "插件加载时是否自动开启后台统计任务",
     "default": true
+  },
+  "rank_start_hour": {
+    "description": "排行榜起始小时",
+    "type": "int",
+    "hint": "每日排行榜从几点开始统计(0-23)。填 0 代表按自然日(00:00)计算。",
+    "default": 0
+  },
+  "daily_start_hour": {
+    "description": "作息判定起始小时",
+    "type": "int",
+    "hint": "早起/熬夜判定界限(0-23)。填 5 代表凌晨 5 点前下线依然算作前一天深夜。",
+    "default": 5
   }
 }

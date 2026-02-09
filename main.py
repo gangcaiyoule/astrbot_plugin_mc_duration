@@ -9,9 +9,9 @@ from typing import Optional
 
 from .rcon import MCRcon
 from .storage import Storage
-from .utils import seconds_to_text, format_time
+from .utils import seconds_to_text, format_time, parse_date_str, get_time_window, calculate_overlap
 
-@register("astrbot_plugin_mc_duration", "YourName", "MC时长统计插件", "1.2.0")
+@register("astrbot_plugin_mc_duration", "YourName", "MC时长统计插件", "1.3.0")
 class MCDurationPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -24,6 +24,9 @@ class MCDurationPlugin(Star):
         self.rcon_password = self.config.get("rcon_password", "")
         self.interval = int(self.config.get("interval", 30))
         self.auto_start = self.config.get("auto_start", True)
+        # New configs
+        self.rank_start_hour = int(self.config.get("rank_start_hour", 0))    # 默认按自然日
+        self.daily_start_hour = int(self.config.get("daily_start_hour", 5))  # 默认按逻辑日(5点)
 
         # 初始化组件
         # 建议将数据存放在 data/plugin_data/ 目录下，避免插件更新导致数据丢失
@@ -94,30 +97,35 @@ class MCDurationPlugin(Star):
     @filter.command("mc_season")
     async def cmd_season(self, event: AstrMessageEvent):
         '''赛季魔人榜 (本月排行榜)'''
+        # 赛季依然按自然月计算 (1号0点 - 下月1号0点)
         now = datetime.datetime.now()
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+        month_start_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Handle December case for next month
+        if now.month == 12:
+            next_month_dt = now.replace(year=now.year+1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            next_month_dt = now.replace(month=now.month+1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+        month_start = month_start_dt.timestamp()
+        month_end = next_month_dt.timestamp()
         
         monthly_stats = []
         all_players = self.storage.get_all_players()
+        curr_time = time.time()
         
         for name, data in all_players.items():
-            month_sec = 0
-            # History sessions
+            sec = 0
+            # 1. Archive sessions
             for s in data.get("sessions", []):
-                if s["start"] >= month_start:
-                    month_sec += (s["end"] - s["start"])
+                sec += calculate_overlap(s["start"], s["end"], month_start, month_end)
             
-            # Current session
+            # 2. Current session
             start = self.storage.get_session_start(name)
             if start:
-                curr_time = time.time()
-                if start >= month_start:
-                    month_sec += (curr_time - start)
-                elif curr_time >= month_start:
-                    month_sec += (curr_time - month_start)
+                sec += calculate_overlap(start, curr_time, month_start, month_end)
 
-            if month_sec > 0:
-                monthly_stats.append((name, month_sec))
+            if sec > 0:
+                monthly_stats.append((name, sec))
 
         if not monthly_stats:
             yield event.plain_result(f"📊 {now.month}月赛季暂无玩家数据。")
@@ -132,25 +140,70 @@ class MCDurationPlugin(Star):
         yield event.plain_result("\n".join(msg))
 
     @filter.command("mc_daily")
-    async def cmd_daily(self, event: AstrMessageEvent):
-        '''今日荣誉榜 (早起/熬夜魔人)'''
-        day_key = datetime.datetime.now().strftime("%Y-%m-%d")
-        meta = self.storage.get_daily_meta(day_key)
-        
-        if not meta or (not meta["first_join"] and not meta["last_leave"]):
-            yield event.plain_result("📅 今日服务器尚无进出记录。")
+    async def cmd_daily(self, event: AstrMessageEvent, date_str: str = ""):
+        '''每日荣誉榜 [日期]'''
+        target_date = parse_date_str(date_str) if date_str else datetime.date.today()
+        if not target_date:
+            yield event.plain_result(f"❌ 日期格式无法识别: {date_str}。请尝试 '8.5', '2023-01-01', '昨天'")
             return
+            
+        # 使用配置的 daily_start_hour 计算时间窗口
+        t_start, t_end = get_time_window(target_date, self.daily_start_hour)
         
-        msg = [f"🌅 **今日方块荣誉 ({day_key})**"]
-        if meta["first_join"]:
-            p, t = meta["first_join"]["player"], meta["first_join"]["time"]
-            msg.append(f"🐔 **早起魔人**: {p} ({format_time(t)})")
+        first_join = None # (player, time)
+        last_leave = None # (player, time)
+
+        all_players = self.storage.get_all_players()
+        curr_time = time.time()
+
+        for name, data in all_players.items():
+            sessions = data.get("sessions", [])
+            # 检查是否有在这个时间段内的活动
+            
+            # 合并历史 session 和当前 session
+            check_list = sessions.copy()
+            active_start = self.storage.get_session_start(name)
+            if active_start:
+                check_list.append({"start": active_start, "end": curr_time})
+
+            for s in check_list:
+                s_start, s_end = s["start"], s["end"]
+                
+                # 判定: 只关心在这个窗口内有效发生的行为
+                # 忽略完全在窗口外的
+                if s_end <= t_start or s_start >= t_end:
+                    continue
+
+                # 早起判定: Start time 必须在窗口内
+                # 如果 s_start < t_start，说明他是前一天玩到今天的，不算“今天早起”
+                if s_start >= t_start:
+                    if not first_join or s_start < first_join[1]:
+                        first_join = (name, s_start)
+                
+                # 熬夜判定: End time 必须在窗口内
+                # 如果 s_end > t_end，说明他玩到了明天，会在明天的 daily 中被归类（或不算熬夜，待定）
+                # 这里我们寻找最晚离开的人
+                if s_end <= t_end:
+                     if not last_leave or s_end > last_leave[1]:
+                        last_leave = (name, s_end)
+                else:
+                    # 此时 s_end > t_end, 说明一直在线没下线，或者下线时间在明天
+                    # 在逻辑日结算时，还没下线通常被视为“修仙中”，暂不判定为熬夜（因为还没睡）
+                    # 或者可以将当前时刻视作“暂时的下线时间”来参与评比?
+                    # 按照原需求“熬夜魔人”通常指很晚下线。如果还在玩，可能不在此列。
+                    # 这里按 Logic: 只看已发生的 end <= t_end. 如果还没下线，不算做"熬夜结束"
+                    pass
+
+        date_disp = target_date.strftime("%Y-%m-%d")
+        msg = [f"🌅 **今日方块荣誉 ({date_disp})**"]
+        
+        if first_join:
+            msg.append(f"🐔 **早起魔人**: {first_join[0]} ({format_time(first_join[1])})")
         else:
             msg.append("🐔 **早起魔人**: 暂无")
             
-        if meta["last_leave"]:
-            p, t = meta["last_leave"]["player"], meta["last_leave"]["time"]
-            msg.append(f"🦉 **熬夜魔人**: {p} ({format_time(t)})")
+        if last_leave:
+            msg.append(f"🦉 **熬夜魔人**: {last_leave[0]} ({format_time(last_leave[1])})")
         else:
             msg.append("🦉 **熬夜魔人**: 暂无")
             
@@ -183,56 +236,71 @@ class MCDurationPlugin(Star):
         yield event.plain_result("🛑 监控已停止")
 
     @filter.command("mc_rank")
-    async def cmd_rank(self, event: AstrMessageEvent):
-        # ===== 今日活跃玩家统计 =====
-        now = datetime.datetime.now()
-        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-
-        # 计算逻辑：storage 里有 sessions 的人 + session_start_cache 里的人 (当前在线)
-        today_active_players = set()
-        all_players = self.storage.get_all_players()
-
-        for name, data in all_players.items():
-            sessions = data.get("sessions", [])
-            for s in sessions:
-                if s["start"] >= start_of_day:
-                    today_active_players.add(name)
-                    break
-            
-            if self.storage.get_session_start(name):
-                today_active_players.add(name)
-
-        today_count = len(today_active_players)
-
-        # 排行榜
-        if not all_players:
-            yield event.plain_result("📊 暂无数据")
+    async def cmd_rank(self, event: AstrMessageEvent, date_str: str = ""):
+        '''MC魔人排行榜 [日期]'''
+        target_date = parse_date_str(date_str) if date_str else datetime.date.today()
+        if not target_date:
+            yield event.plain_result(f"❌ 日期格式无法识别: {date_str}。")
             return
 
-        sorted_players = sorted(
-            all_players.items(), 
-            key=lambda x: x[1].get("total_seconds", 0), 
-            reverse=True
-        )
+        # 使用配置的 rank_start_hour 计算时间窗口
+        t_start, t_end = get_time_window(target_date, self.rank_start_hour)
         
-        msg = ["🏆 **MC魔人排行榜**"]
-        for i, (name, data) in enumerate(sorted_players[:10], 1):
-            sec = data.get("total_seconds", 0)
-            status = "👑" if self.storage.get_session_start(name) else "🐶"
-            msg.append(f"{i}. {status} {name}: {seconds_to_text(sec)}")
+        # 计算该时间段内的活跃玩家和时长
+        ranked_data = [] # (name, seconds)
+        all_players = self.storage.get_all_players()
+        curr_time = time.time()
         
-        # 彩蛋
-        online_count = today_count
-        if online_count == 0:
-            msg.append("\n🌙 服务器空空如也，连苦力怕都开始emo了。")
-        elif online_count == 1:
-            msg.append("\n🧑‍💻 现在知道卷王是怎么练成的吧？一个人撑起整个服务器。")
-        elif online_count == 2:
-            msg.append("\n💞 我能想到最浪漫的事，就是在MC里和你一起挖到天荒地老。")
-        elif online_count < 5:
+        online_count = 0 
+
+        for name, data in all_players.items():
+            sec = 0
+            # 1. 历史 sessions
+            for s in data.get("sessions", []):
+                sec += calculate_overlap(s["start"], s["end"], t_start, t_end)
+            
+            # 2. 当前 session
+            active_start = self.storage.get_session_start(name)
+            if active_start:
+                # 只有当这是查“今天”时，统计当前在线才算作“当前在线人数”
+                # 如果查历史日期，current_online_names 意义不大，online_count 仅指当时活跃过的人?
+                # 这里为了简单，online_count 仍指 *此刻* 在线，用于输出彩蛋 (仅当查询今天时有效)
+                pass 
+                sec += calculate_overlap(active_start, curr_time, t_start, t_end)
+
+            if sec > 0:
+                ranked_data.append((name, sec))
+
+        ranked_data.sort(key=lambda x: x[1], reverse=True)
+        
+        date_disp = target_date.strftime("%Y-%m-%d")
+        msg = [f"🏆 **MC魔人排行榜 ({date_disp})**"]
+        
+        for i, (name, sec) in enumerate(ranked_data[:10], 1):
+            is_online = self.storage.get_session_start(name) is not None
+            # 只有查今天才显示在线状态徽章，否则都是离线
+            status = ("👑" if is_online else "🐶") if date_str == "" else "👤"
+            msg.append(f"{i}. {status} {name}: {seconds_to_text(int(sec))}")
+
+        if not ranked_data:
+            msg.append("📊 该日期暂无游戏记录。")
+            yield event.plain_result("\n".join(msg))
+            return
+
+        # 彩蛋逻辑 (仅当查询今日时准确)
+        # 如果是查询历史，根据当天的活跃人数来发彩蛋
+        active_count = len(ranked_data)
+        
+        if active_count == 0:
+            msg.append("\n🌙 这一天服务器静悄悄的。")
+        elif active_count == 1:
+            msg.append("\n🧑‍💻 孤独的守望者，一个人撑起一片天。")
+        elif active_count == 2:
+            msg.append("\n💞 二人世界，方块传情。")
+        elif active_count < 5:
             msg.append("\n✨ 小团体的快乐，属于你们的方块宇宙。")
         else:
-            msg.append("\n🔥 大型网吧现场，全员不睡觉是吧？")
+            msg.append("\n🔥 火热的一天，大家都爱MC！")
             
         yield event.plain_result("\n".join(msg))
 

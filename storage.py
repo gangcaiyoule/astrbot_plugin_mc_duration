@@ -44,11 +44,8 @@ class Storage:
             logger.error(f"MC统计数据保存失败: {e}")
 
     def update_playtime(self, players: List[str], delta: float, current_time: float):
-        day_key = datetime.datetime.now().strftime("%Y-%m-%d")
-        if day_key not in self.daily_meta:
-            self.daily_meta[day_key] = {"first_join": None, "last_leave": None}
-
         # 记录新玩家上线
+        # 注意: daily_meta 已废弃，改为实时计算
         for p in players:
             if p not in self.player_data:
                 self.player_data[p] = {"total_seconds": 0, "sessions": []}
@@ -58,13 +55,8 @@ class Storage:
             # 缓存session开始时间
             if p not in self.session_start_cache:
                 self.session_start_cache[p] = current_time
-                # 记录每日首次上线
-                if not self.daily_meta[day_key]["first_join"]:
-                    self.daily_meta[day_key]["first_join"] = {"player": p, "time": current_time}
 
     def handle_disconnects(self, disconnected_players: List[str], current_time: float):
-        day_key = datetime.datetime.now().strftime("%Y-%m-%d")
-        
         for p in disconnected_players:
             start_ts = self.session_start_cache.pop(p, None)
             if start_ts:
@@ -73,12 +65,6 @@ class Storage:
                      self.player_data[p] = {"total_seconds": 0, "sessions": []}
                      
                 self.player_data[p]["sessions"].append({"start": int(start_ts), "end": int(current_time)})
-                
-                # 记录每日最后离开
-                if day_key not in self.daily_meta:
-                     self.daily_meta[day_key] = {"first_join": None, "last_leave": None}
-                     
-                self.daily_meta[day_key]["last_leave"] = {"player": p, "time": current_time}
         
         self.save_data()
 
