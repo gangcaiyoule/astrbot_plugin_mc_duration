@@ -94,13 +94,55 @@ class MCDurationPlugin(Star):
     # ==========================
     # 指令
     # ==========================
+    def _calculate_daily_stats(self, target_date: datetime.date, all_players: dict) -> tuple[str | None, str | None, str | None]:
+        """计算指定日期的各项魔人归属 (榜首, 早起, 熬夜)"""
+        # 1. 计算排行榜首 (使用 rank_start_hour)
+        t_start, t_end = get_time_window(target_date, self.rank_start_hour)
+        max_sec = 0
+        top_player = None
+        
+        for name, data in all_players.items():
+            sec = 0
+            for s in data.get("sessions", []):
+                sec += calculate_overlap(s["start"], s["end"], t_start, t_end)
+            
+            # 这里是离线计算历史数据，不考虑 curr_time 在线情况，只看已落库的sessions
+            # 如果要非常精确，需要传入当时的“实时”数据，但对于过去日期，sessions已足够
+            if sec > max_sec:
+                max_sec = sec
+                top_player = name
+                
+        # 2. 计算作息魔人 (使用 daily_start_hour)
+        t_start_d, t_end_d = get_time_window(target_date, self.daily_start_hour)
+        first_p, last_p = None, None
+        first_t, last_t = None, None
+
+        for name, data in all_players.items():
+            for s in data.get("sessions", []):
+                # 早起: Start 在窗口内，且最早
+                if s["start"] >= t_start_d and s["start"] < t_end_d:
+                    if first_t is None or s["start"] < first_t:
+                        first_t = s["start"]
+                        first_p = name
+                        
+                # 熬夜: End 在窗口内，且最晚 (end <= t_end_d 防止判定明天)
+                # 使用 calculate_overlap 判定是否在窗口内有交集也可以
+                if s["end"] > t_start_d and s["end"] <= t_end_d:
+                    if last_t is None or s["end"] > last_t:
+                        last_t = s["end"]
+                        last_p = name
+
+        return top_player, first_p, last_p
+
     @filter.command("mc_season")
     async def cmd_season(self, event: AstrMessageEvent):
         '''赛季魔人榜 (本月排行榜)'''
         # 赛季依然按自然月计算 (1号0点 - 下月1号0点)
         now = datetime.datetime.now()
+        cur_year, cur_month = now.year, now.month
+        
         month_start_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        # Handle December case for next month
+        # Handle December case
         if now.month == 12:
             next_month_dt = now.replace(year=now.year+1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         else:
@@ -112,31 +154,74 @@ class MCDurationPlugin(Star):
         monthly_stats = []
         all_players = self.storage.get_all_players()
         curr_time = time.time()
-        
+
+        # ==========================================
+        # 1. 统计本月总时长
+        # ==========================================
         for name, data in all_players.items():
             sec = 0
-            # 1. Archive sessions
+            # Archive sessions
             for s in data.get("sessions", []):
                 sec += calculate_overlap(s["start"], s["end"], month_start, month_end)
             
-            # 2. Current session
+            # Current session
             start = self.storage.get_session_start(name)
             if start:
                 sec += calculate_overlap(start, curr_time, month_start, month_end)
 
             if sec > 0:
-                monthly_stats.append((name, sec))
+                monthly_stats.append({"name": name, "sec": sec, "badges": []})
 
         if not monthly_stats:
-            yield event.plain_result(f"📊 {now.month}月赛季暂无玩家数据。")
+            yield event.plain_result(f"📊 {cur_month}月赛季暂无玩家数据。")
             return
 
-        monthly_stats.sort(key=lambda x: x[1], reverse=True)
-        msg = [f"📅 **{now.month}月赛季魔人榜** 📅"]
-        for i, (name, sec) in enumerate(monthly_stats[:10], 1):
-            status = "👑" if self.storage.get_session_start(name) else "🌙"
-            msg.append(f"{i}. {status} {name}: {seconds_to_text(int(sec))}")
+        # ==========================================
+        # 2. 回溯本月每一天，统计成就
+        # ==========================================
+        # 统计计数器: {player_name: {"top": 0, "early": 0, "night": 0}}
+        achievements = {entry["name"]: {"top": 0, "early": 0, "night": 0} for entry in monthly_stats}
         
+        # 遍历从1号到昨天 (今天仍在进行中，也可以算，但为了稳定建议算到昨天? )
+        # 需求里隐含是“获得过”，通常包含今天(如果今天榜单已初具雏形)
+        # 遍历: 1号 -> 今天 (now.day)
+        today = datetime.date.today()
+        # 构造日期列表: 1号 ... 今天
+        date_list = [datetime.date(cur_year, cur_month, d) for d in range(1, today.day + 1)]
+        
+        for d in date_list:
+            top, first, last = self._calculate_daily_stats(d, all_players)
+            if top and top in achievements: achievements[top]["top"] += 1
+            if first and first in achievements: achievements[first]["early"] += 1
+            if last and last in achievements: achievements[last]["night"] += 1
+
+        # ==========================================
+        # 3. 格式化输出
+        # ==========================================
+        monthly_stats.sort(key=lambda x: x["sec"], reverse=True)
+        msg = [f"📅 **{cur_month}月赛季魔人榜 ({cur_year})** 📅"]
+        
+        for i, item in enumerate(monthly_stats[:15], 1): # Top 15
+            name = item["name"]
+            sec_str = seconds_to_text(int(item["sec"]))
+            # Online status
+            is_online = self.storage.get_session_start(name) is not None
+            status = "👑" if is_online else "🌙"
+            
+            # Build Badge String
+            ach = achievements.get(name, {})
+            badges_str = ""
+            b_list = []
+            if ach.get("top", 0) > 0: b_list.append(f"🏆x{ach['top']}")
+            if ach.get("early", 0) > 0: b_list.append(f"🐔x{ach['early']}")
+            if ach.get("night", 0) > 0: b_list.append(f"🦉x{ach['night']}")
+            if b_list:
+                badges_str = f"  [{' '.join(b_list)}]"
+
+            msg.append(f"{i}. {status} {name}: {sec_str}{badges_str}")
+        
+        msg.append("\n----------------")
+        msg.append("图例: 🏆魔人榜首 | 🐔早起魔人 | 🦉熬夜魔人")
         yield event.plain_result("\n".join(msg))
 
     @filter.command("mc_daily")
