@@ -2,7 +2,7 @@ import json
 import os
 import datetime
 import time
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 from astrbot.api import logger
 
 class Storage:
@@ -67,6 +67,40 @@ class Storage:
                 self.player_data[p]["sessions"].append({"start": int(start_ts), "end": int(current_time)})
         
         self.save_data()
+
+    def purge_players(self, players: Iterable[str]) -> int:
+        """删除指定玩家的全部统计数据，并移除其在线缓存。"""
+        targets = set()
+        for player in players:
+            if player is None:
+                continue
+            name = str(player).strip()
+            if name:
+                targets.add(name)
+
+        if not targets:
+            return 0
+
+        removed_count = 0
+        changed = False
+
+        for name in targets:
+            removed = False
+            if name in self.player_data:
+                self.player_data.pop(name, None)
+                removed = True
+                changed = True
+            if name in self.session_start_cache:
+                self.session_start_cache.pop(name, None)
+                removed = True
+                changed = True
+            if removed:
+                removed_count += 1
+
+        if changed:
+            self.save_data()
+
+        return removed_count
 
     def get_player(self, name: str) -> Optional[Dict]:
         return self.player_data.get(name)

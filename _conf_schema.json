@@ -46,5 +46,11 @@
     "type": "int",
     "hint": "早起/熬夜判定界限(0-23)。填 5 代表凌晨 5 点前下线依然算作前一天深夜。",
     "default": 5
+  },
+  "player_blacklist": {
+    "description": "玩家黑名单",
+    "type": "string",
+    "hint": "黑名单玩家ID，多个用逗号分隔（例如 Steve,Alex）。黑名单玩家会持续清理历史数据且不再记录时长。",
+    "default": ""
   }
 }

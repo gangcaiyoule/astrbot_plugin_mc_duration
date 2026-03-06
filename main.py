@@ -5,7 +5,7 @@ import asyncio
 import time
 import datetime
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from .rcon import MCRcon
 from .storage import Storage
@@ -27,6 +27,7 @@ class MCDurationPlugin(Star):
         # New configs
         self.rank_start_hour = int(self.config.get("rank_start_hour", 0))    # 默认按自然日
         self.daily_start_hour = int(self.config.get("daily_start_hour", 5))  # 默认按逻辑日(5点)
+        self.player_blacklist = self._parse_blacklist(self.config.get("player_blacklist", ""))
 
         # 初始化组件
         # 建议将数据存放在 data/plugin_data/ 目录下，避免插件更新导致数据丢失
@@ -39,6 +40,10 @@ class MCDurationPlugin(Star):
         
         self.tracking_task: Optional[asyncio.Task] = None
         self.last_check_time = 0.0
+        self._purge_blacklisted_players()
+
+        if self.player_blacklist:
+            logger.info(f"[MCDuration] 黑名单已启用: {', '.join(sorted(self.player_blacklist))}")
 
         # 自动启动
         if self.auto_start:
@@ -47,6 +52,28 @@ class MCDurationPlugin(Star):
     # ==========================
     # 核心监控逻辑
     # ==========================
+
+    def _parse_blacklist(self, raw_value: Any) -> set[str]:
+        if raw_value is None:
+            return set()
+
+        if isinstance(raw_value, str):
+            normalized = raw_value.replace("，", ",").replace("\n", ",").replace(" ", ",")
+            candidates = normalized.split(",")
+        elif isinstance(raw_value, (list, tuple, set)):
+            candidates = [str(item) for item in raw_value]
+        else:
+            candidates = [str(raw_value)]
+
+        return {name.strip() for name in candidates if name and name.strip()}
+
+    def _purge_blacklisted_players(self):
+        if not self.player_blacklist:
+            return
+
+        removed_count = self.storage.purge_players(self.player_blacklist)
+        if removed_count > 0:
+            logger.info(f"[MCDuration] 已清理黑名单玩家数据: {removed_count} 个")
     
     async def _start_monitor(self):
         if self.tracking_task and not self.tracking_task.done(): return
@@ -60,10 +87,12 @@ class MCDurationPlugin(Star):
                 curr_time = time.time()
                 delta = min(curr_time - self.last_check_time, self.interval * 2)
                 self.last_check_time = curr_time
+                self._purge_blacklisted_players()
                 
                 players = await self.rcon.fetch_players()
 
                 if players is not None:
+                    players = [p for p in players if p not in self.player_blacklist]
                     # 更新在线时长 & 处理上线逻辑
                     self.storage.update_playtime(players, delta, curr_time)
 
@@ -137,6 +166,7 @@ class MCDurationPlugin(Star):
     @filter.command("mc_season")
     async def cmd_season(self, event: AstrMessageEvent):
         '''赛季魔人榜 (本月排行榜)'''
+        self._purge_blacklisted_players()
         # 赛季依然按自然月计算 (1号0点 - 下月1号0点)
         now = datetime.datetime.now()
         cur_year, cur_month = now.year, now.month
@@ -227,6 +257,7 @@ class MCDurationPlugin(Star):
     @filter.command("mc_daily")
     async def cmd_daily(self, event: AstrMessageEvent, date_str: str = ""):
         '''每日荣誉榜 [日期]'''
+        self._purge_blacklisted_players()
         target_date = parse_date_str(date_str) if date_str else datetime.date.today()
         if not target_date:
             yield event.plain_result(f"❌ 日期格式无法识别: {date_str}。请尝试 '8.5', '2023-01-01', '昨天'")
@@ -323,6 +354,7 @@ class MCDurationPlugin(Star):
     @filter.command("mc_rank")
     async def cmd_rank(self, event: AstrMessageEvent, date_str: str = ""):
         '''MC魔人排行榜 [日期]'''
+        self._purge_blacklisted_players()
         target_date = parse_date_str(date_str) if date_str else datetime.date.today()
         if not target_date:
             yield event.plain_result(f"❌ 日期格式无法识别: {date_str}。")
@@ -392,8 +424,13 @@ class MCDurationPlugin(Star):
     @filter.command("mc_me")
     async def cmd_me(self, event: AstrMessageEvent, player: Optional[str] = None):
         '''查询详情 /mc_me [ID]'''
+        self._purge_blacklisted_players()
         if not player:
             player = event.get_sender_name()
+
+        if player in self.player_blacklist:
+            yield event.plain_result(f"❌ 玩家 {player} 在黑名单中，已不再记录时长。")
+            return
 
         data = self.storage.get_player(player)
         if not data:
