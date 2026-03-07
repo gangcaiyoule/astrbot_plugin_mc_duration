@@ -1,6 +1,16 @@
-# 🎮 Minecraft 玩家时长统计 (astrbot_plugin_mc_duration)
+<div align="center">
 
-一个用于 AstrBot 的 Minecraft 服务器玩家在线时长统计插件。通过 RCON 协议实时监控服务器在线玩家，记录游戏时长，并在群内提供丰富的排行榜和趣味数据统计功能。
+# 🎮 Minecraft 玩家时长统计
+
+[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.4.1-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
+[![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-ff69b4?style=for-the-badge)](https://github.com/AstrBotDevs/AstrBot)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
+
+_✨ 通过 RCON 协议实时监控 Minecraft 服务器在线玩家，记录游戏时长，提供排行榜和趣味数据统计功能。✨_
+
+<img src="https://count.getloli.com/@astrbot-plugin-mc-duration?name=astrbot-plugin-mc-duration&theme=minecraft&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" alt="count" />
+
+</div>
 
 ## ✨ 功能特性
 
@@ -23,7 +33,8 @@ rcon.password=你的强密码
 rcon.port=25575
 ```
 
-*修改配置后需要重启 Minecraft 服务器。*
+> [!NOTE]
+> 修改配置后需要重启 Minecraft 服务器。
 
 ## ⚙️ 插件配置
 
@@ -55,11 +66,13 @@ rcon.port=25575
 
 ## ❗ 注意事项
 
-*   插件默认每 30 秒连接一次 RCON 获取在线列表，流量消耗极低。
-*   所有的统计数据存储在 `AstrBot/data/plugin_data/astrbot_plugin_mc_duration/data.json` 中。
-*   如果在云服务器或 Docker 环境运行，请确保 AstrBot 能访问到 Minecraft 服务器的 RCON 端口 (需配置防火墙/安全组)。
+> [!NOTE]
+> 插件默认每 30 秒连接一次 RCON 获取在线列表，流量消耗极低。所有统计数据存储在 `AstrBot/data/plugin_data/astrbot_plugin_mc_duration/data.json` 中。
 
----
-*Developed for AstrBot*
+> [!WARNING]
+> 如果在云服务器或 Docker 环境运行，请确保 AstrBot 能访问到 Minecraft 服务器的 RCON 端口（需配置防火墙/安全组）。
+
+> [!IMPORTANT]
+> 本插件依赖 RCON 协议，请务必在 `server.properties` 中启用 RCON 并设置强密码，避免暴露在公网。
 
 如果有任何 Bug 反馈或功能建议，欢迎联系作者 QQ: **964389211**
