@@ -24,7 +24,6 @@ class MCDurationPlugin(Star):
         self.rcon_password = self.config.get("rcon_password", "")
         self.interval = int(self.config.get("interval", 30))
         self.auto_start = self.config.get("auto_start", True)
-        # New configs
         self.rank_start_hour = int(self.config.get("rank_start_hour", 0))    # 默认按自然日
         self.daily_start_hour = int(self.config.get("daily_start_hour", 5))  # 默认按逻辑日(5点)
 
