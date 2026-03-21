@@ -1,6 +1,6 @@
 name: astrbot_plugin_mc_duration # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
 display_name: MC魔人时长统计 # 用于展示的名字，可以是方便人类阅读的名字（需要版本 >= v4.5.0，低版本不会报错，请放心填写）
 desc: MC魔人检测插件，主要用于统计每个玩家的游戏时长并进行魔人颁奖，可以查看指定玩家的游戏时间段等。 # 插件简短描述
-version: v1.4.2 # 插件版本号。格式：v1.1.1 或者 v1.1
+version: v1.5.2 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: gangcaiyoule # 作者
 repo: https://github.com/gangcaiyoule/astrbot_plugin_mc_duration # 插件的仓库地址

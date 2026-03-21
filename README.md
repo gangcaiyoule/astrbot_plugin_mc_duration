@@ -2,7 +2,7 @@
 
 # 🎮 Minecraft 玩家时长统计
 
-[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.4.1-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
+[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.5.2-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-ff69b4?style=for-the-badge)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
@@ -63,7 +63,9 @@ rcon.port=25575
 | `/mc_me [ID]` | 查询个人或指定玩家的详细统计 | `/mc_me`<br>`/mc_me Notch` | 所有人 |
 | `/mc_stat_on` | 开启监控任务 | / | 管理员 |
 | `/mc_stat_off` | 暂停监控任务 | / | 管理员 |
-
+## 更新日志
+### v1.5
+- 添加黑名单功能
 ## ❗ 注意事项
 
 > [!NOTE]
