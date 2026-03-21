@@ -5,23 +5,24 @@ import time
 from typing import Dict, Iterable, List, Optional
 from astrbot.api import logger
 
+
 class Storage:
     def __init__(self, data_dir: str):
         self.data_dir = data_dir
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir, exist_ok=True)
         self.data_path = os.path.join(self.data_dir, "data.json")
-        
-        self.player_data: Dict[str, Dict] = {} 
+
+        self.player_data: Dict[str, Dict] = {}
         self.daily_meta: Dict[str, Dict] = {}
         self.session_start_cache: Dict[str, float] = {}
-        
+
         self.load_data()
 
     def load_data(self):
         if os.path.exists(self.data_path):
             try:
-                with open(self.data_path, 'r', encoding='utf-8') as f:
+                with open(self.data_path, "r", encoding="utf-8") as f:
                     raw_data = json.load(f)
                     if "players" in raw_data:
                         self.player_data = raw_data["players"]
@@ -34,11 +35,8 @@ class Storage:
 
     def save_data(self):
         try:
-            with open(self.data_path, 'w', encoding='utf-8') as f:
-                payload = {
-                    "players": self.player_data,
-                    "daily_meta": self.daily_meta
-                }
+            with open(self.data_path, "w", encoding="utf-8") as f:
+                payload = {"players": self.player_data, "daily_meta": self.daily_meta}
                 json.dump(payload, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"MC统计数据保存失败: {e}")
@@ -49,7 +47,7 @@ class Storage:
         for p in players:
             if p not in self.player_data:
                 self.player_data[p] = {"total_seconds": 0, "sessions": []}
-            
+
             self.player_data[p]["total_seconds"] += int(delta)
 
             # 缓存session开始时间
@@ -62,10 +60,12 @@ class Storage:
             if start_ts:
                 # 记录 Session
                 if p not in self.player_data:
-                     self.player_data[p] = {"total_seconds": 0, "sessions": []}
-                     
-                self.player_data[p]["sessions"].append({"start": int(start_ts), "end": int(current_time)})
-        
+                    self.player_data[p] = {"total_seconds": 0, "sessions": []}
+
+                self.player_data[p]["sessions"].append(
+                    {"start": int(start_ts), "end": int(current_time)}
+                )
+
         self.save_data()
 
     def purge_players(self, players: Iterable[str]) -> int:

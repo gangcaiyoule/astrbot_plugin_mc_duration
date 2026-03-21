@@ -3,6 +3,7 @@ import struct
 from typing import Optional, List
 from astrbot.api import logger
 
+
 class MCRcon:
     def __init__(self, host: str, port: int, password: str, rcon_port: int):
         self.host = host
@@ -19,7 +20,11 @@ class MCRcon:
             )
 
             async def send_packet(pkt_type: int, payload: str, pkt_id: int):
-                data = struct.pack("<ii", pkt_id, pkt_type) + payload.encode('utf-8') + b"\x00\x00"
+                data = (
+                    struct.pack("<ii", pkt_id, pkt_type)
+                    + payload.encode("utf-8")
+                    + b"\x00\x00"
+                )
                 writer.write(struct.pack("<i", len(data)) + data)
                 await writer.drain()
 
@@ -28,7 +33,7 @@ class MCRcon:
                 length = struct.unpack("<i", length_pkt)[0]
                 data = await reader.readexactly(length)
                 pkt_id, pkt_type = struct.unpack("<ii", data[:8])
-                return pkt_id, pkt_type, data[8:-2].decode('utf-8')
+                return pkt_id, pkt_type, data[8:-2].decode("utf-8")
 
             # 1. Auth
             await send_packet(3, self.password, 1)
@@ -42,10 +47,14 @@ class MCRcon:
             _, _, response = await read_packet()
             return response
         except asyncio.TimeoutError:
-            logger.error(f"[MCDuration] RCON 连接超时，请检查防火墙/安全组 {self.rcon_port} 端口是否开放。")
+            logger.error(
+                f"[MCDuration] RCON 连接超时，请检查防火墙/安全组 {self.rcon_port} 端口是否开放。"
+            )
             return None
         except ConnectionRefusedError:
-            logger.error(f"[MCDuration] RCON 连接被拒绝，请检查服端 server.properties 中 enable-rcon 是否为 true。")
+            logger.error(
+                f"[MCDuration] RCON 连接被拒绝，请检查服端 server.properties 中 enable-rcon 是否为 true。"
+            )
             return None
         except Exception as e:
             logger.error(f"[MCDuration] RCON 运行异常: {str(e)}")
@@ -61,15 +70,15 @@ class MCRcon:
         resp = await self.send_command("list")
         if not resp:
             return None
-        
+
         # Vanilla/Paper output: "There are X of Y players online: name1, name2"
         # Or: "There are X players online: name1, name2"
         if ":" not in resp:
             return []
-        
+
         names_str = resp.split(":", 1)[1].strip()
         if not names_str:
             return []
-            
+
         names = [n.strip() for n in names_str.split(",")]
         return [n for n in names if n]
