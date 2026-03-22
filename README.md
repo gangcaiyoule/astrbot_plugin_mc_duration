@@ -2,7 +2,7 @@
 
 # 🎮 Minecraft 玩家时长统计
 
-[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.7.1-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
+[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.7.3-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-ff69b4?style=for-the-badge)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
@@ -92,6 +92,7 @@ rcon.port=25575
 | 指令 | 描述 | 示例 | 权限 |
 | :--- | :--- | :--- | :--- |
 | `/mc_rank [日期]` | 查看**指定日期**的时长排行榜 | `/mc_rank`<br>`/mc_rank 昨天` | 所有人 |
+| `/mc_rank all` | 查看该存档累计时长排名 | / | 所有人 |
 | `/mc_daily [日期]` | 查看**指定日期**的“早起/熬夜”魔人榜 | `/mc_daily`<br>`/mc_daily 8.5` | 所有人 |
 | `/mc_season` | 查看**本月赛季榜** (含成就徽章统计) | `/mc_season` | 所有人 |
 | `/mc_me [ID]` | 查询个人或指定玩家的详细统计 | `/mc_me`<br>`/mc_me Notch` | 所有人 |
@@ -100,6 +101,12 @@ rcon.port=25575
 | `/mc_push_bind <alias>` | 将当前会话绑定为推送目标别名 | `/mc_push_bind mc_group` | 管理员 |
 | `/mc_push_bind list` | 查看当前已绑定的推送目标 | `/mc_push_bind list` | 管理员 |
 | `/mc_push_bind del <alias>` | 删除一个已绑定的推送目标 | `/mc_push_bind del mc_group` | 管理员 |
+| `/mc_save_list` | 查看存档列表 | / | 所有人 |
+| `/mc_save_current` | 查看当前激活的存档 | / | 所有人 |
+| `/mc_save_create <存档名>` | 创建一个新存档并切换过去 | `/mc_save_create 落幕雨存档` | 管理员 |
+| `/mc_save_switch <存档名或ID>` | 切换到指定存档进行统计 | `/mc_save_switch 落幕雨存档` | 管理员 |
+| `/mc_save_delete <存档名或ID> confirm` | 删除一个存档及其数据 | `/mc_save_delete 落幕雨存档 confirm` | 管理员 |
+| `/mc_save_player_delete <存档名或ID> <玩家名> confirm` | 删除某玩家在指定存档中的数据 | `/mc_save_player_delete 落幕雨存档 Steve confirm` | 管理员 |
 
 ## 指令详解
 

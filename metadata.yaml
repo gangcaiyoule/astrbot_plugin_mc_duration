@@ -1,6 +1,6 @@
 name: astrbot_plugin_mc_duration
 display_name: MC时长统计
 desc: MC 游玩时长统计插件，支持排行榜、个人统计、定时推送和多存档隔离统计。
-version: v1.7.2
+version: v1.7.3
 author: gangcaiyoule
 repo: https://github.com/gangcaiyoule/astrbot_plugin_mc_duration
