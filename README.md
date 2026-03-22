@@ -2,9 +2,11 @@
 
 # 🎮 Minecraft 玩家时长统计
 
-[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.7.3-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
+[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.7.4-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-ff69b4?style=for-the-badge)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
+
+[中文](./README.md) | [English](./README.en.md)
 
 _✨ 通过 RCON 协议实时监控 Minecraft 服务器在线玩家，记录游戏时长，提供排行榜和趣味数据统计功能。✨_
 
