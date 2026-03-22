@@ -2,7 +2,7 @@
 
 # 🎮 Minecraft 玩家时长统计
 
-[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.6.0-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
+[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.7.0-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-ff69b4?style=for-the-badge)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
@@ -74,6 +74,124 @@ rcon.port=25575
 | `/mc_push_bind <alias>` | 将当前会话绑定为推送目标别名 | `/mc_push_bind mc_group` | 管理员 |
 | `/mc_push_bind list` | 查看当前已绑定的推送目标 | `/mc_push_bind list` | 管理员 |
 | `/mc_push_bind del <alias>` | 删除一个已绑定的推送目标 | `/mc_push_bind del mc_group` | 管理员 |
+
+## 指令详解
+
+<details>
+<summary><strong>基础查询指令</strong></summary>
+
+### `/mc_rank [日期]`
+- 功能：查看当前激活存档指定日期的游玩时长排行
+- 用法：`/mc_rank` 或 `/mc_rank 2024-01-01`
+- 示例：`/mc_rank 昨天`
+- 权限：所有人
+
+### `/mc_rank all`
+- 功能：查看当前激活存档的累计总榜
+- 用法：`/mc_rank all`
+- 示例：`/mc_rank all`
+- 权限：所有人
+
+### `/mc_daily [日期]`
+- 功能：查看当前激活存档指定日期的早起玩家和熬夜玩家
+- 用法：`/mc_daily` 或 `/mc_daily 2024-08-05`
+- 示例：`/mc_daily 昨天`
+- 权限：所有人
+
+### `/mc_season`
+- 功能：查看当前激活存档本月的赛季榜
+- 用法：`/mc_season`
+- 示例：`/mc_season`
+- 权限：所有人
+
+### `/mc_me [玩家ID]`
+- 功能：查看自己或指定玩家在当前激活存档中的统计信息
+- 用法：`/mc_me` 或 `/mc_me Steve`
+- 示例：`/mc_me Steve`
+- 权限：所有人
+
+</details>
+
+<details>
+<summary><strong>监控控制指令</strong></summary>
+
+### `/mc_stat_on`
+- 功能：开启游玩时长监控任务
+- 用法：`/mc_stat_on`
+- 示例：`/mc_stat_on`
+- 权限：管理员
+
+### `/mc_stat_off`
+- 功能：停止游玩时长监控任务
+- 用法：`/mc_stat_off`
+- 示例：`/mc_stat_off`
+- 权限：管理员
+
+</details>
+
+<details>
+<summary><strong>推送绑定指令</strong></summary>
+
+### `/mc_push_bind <alias>`
+- 功能：把当前会话绑定成一个可用于定时推送的别名
+- 用法：`/mc_push_bind <alias>`
+- 示例：`/mc_push_bind mc_group`
+- 权限：管理员
+
+### `/mc_push_bind list`
+- 功能：查看当前所有已绑定的推送目标
+- 用法：`/mc_push_bind list`
+- 示例：`/mc_push_bind list`
+- 权限：管理员
+
+### `/mc_push_bind del <alias>`
+- 功能：删除一个已经绑定的推送目标
+- 用法：`/mc_push_bind del <alias>`
+- 示例：`/mc_push_bind del mc_group`
+- 权限：管理员
+
+</details>
+
+<details>
+<summary><strong>存档管理指令</strong></summary>
+
+### `/mc_save_list`
+- 功能：查看所有存档以及当前激活存档
+- 用法：`/mc_save_list`
+- 示例：`/mc_save_list`
+- 权限：所有人
+
+### `/mc_save_current`
+- 功能：查看当前正在统计的存档
+- 用法：`/mc_save_current`
+- 示例：`/mc_save_current`
+- 权限：所有人
+
+### `/mc_save_create <存档名>`
+- 功能：创建一个新存档并立即切换过去开始统计
+- 用法：`/mc_save_create <存档名>`
+- 示例：`/mc_save_create 落幕雨存档`
+- 权限：管理员
+
+### `/mc_save_switch <存档名或ID>`
+- 功能：切换到指定存档进行统计和展示
+- 用法：`/mc_save_switch <存档名或ID>`
+- 示例：`/mc_save_switch 落幕雨存档`
+- 权限：管理员
+
+### `/mc_save_delete <存档名或ID> confirm`
+- 功能：删除一个存档及其全部数据
+- 用法：`/mc_save_delete <存档名或ID> confirm`
+- 示例：`/mc_save_delete 落幕雨存档 confirm`
+- 权限：管理员
+
+### `/mc_save_player_delete <存档名或ID> <玩家名> confirm`
+- 功能：删除某个玩家在指定存档中的全部数据
+- 用法：`/mc_save_player_delete <存档名或ID> <玩家名> confirm`
+- 示例：`/mc_save_player_delete 落幕雨存档 Steve confirm`
+- 权限：管理员
+
+</details>
 
 ## 📮 定时推送使用教程
 
@@ -199,6 +317,9 @@ merge_mode: separate
 - 添加定时主动推送功能
 - 支持会话绑定命令 `/mc_push_bind`
 - 支持在 WebUI 中配置多个定时推送任务
+### v1.7
+- 重构数据管理系统，使用sqlite
+- 实现不同存档间的数据隔离
 ## ❗ 注意事项
 
 > [!NOTE]

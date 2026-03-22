@@ -1,6 +1,6 @@
 name: astrbot_plugin_mc_duration
-display_name: MC魔人时长统计
-desc: MC魔人检测插件，主要用于统计每个玩家的游玩时长，支持排行榜、个人统计和定时主动推送。
-version: v1.6.0
+display_name: MC时长统计
+desc: MC 游玩时长统计插件，支持排行榜、个人统计、定时推送和多存档隔离统计。
+version: v1.7.0
 author: gangcaiyoule
 repo: https://github.com/gangcaiyoule/astrbot_plugin_mc_duration
