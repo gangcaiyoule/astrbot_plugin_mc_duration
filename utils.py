@@ -1,6 +1,5 @@
 import datetime
 import re
-from typing import Optional, Tuple
 
 
 def format_time(timestamp: float, full=False) -> str:
@@ -26,7 +25,7 @@ def seconds_to_text(seconds: int) -> str:
     return "".join(parts)
 
 
-def parse_date_str(date_str: str) -> Optional[datetime.date]:
+def parse_date_str(date_str: str) -> datetime.date | None:
     """解析用户输入的日期字符串
     支持: "昨天", "yesterday", "8.5", "2023.8.5", "2023-8-5"
     """
@@ -64,7 +63,7 @@ def parse_date_str(date_str: str) -> Optional[datetime.date]:
     return None
 
 
-def get_time_window(target_date: datetime.date, start_hour: int) -> Tuple[float, float]:
+def get_time_window(target_date: datetime.date, start_hour: int) -> tuple[float, float]:
     """获取指定日期的统计时间窗口 (timestamp start, timestamp end)"""
     start_dt = datetime.datetime.combine(target_date, datetime.time(hour=start_hour))
     end_dt = start_dt + datetime.timedelta(days=1)

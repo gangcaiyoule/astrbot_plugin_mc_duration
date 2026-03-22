@@ -8,7 +8,7 @@
   "server_port": {
     "description": "服务器端口",
     "type": "int",
-    "hint": "Java 版默认 25565，基岩版通常不支持 Ping 协议请注意",
+    "hint": "Java 版默认 25565",
     "default": 25565
   },
   "rcon_port": {
@@ -32,25 +32,118 @@
   "auto_start": {
     "description": "自动启动监控",
     "type": "bool",
-    "hint": "插件加载时是否自动开启后台统计任务",
+    "hint": "插件加载时是否自动开启统计任务",
     "default": true
   },
   "rank_start_hour": {
     "description": "排行榜起始小时",
     "type": "int",
-    "hint": "每日排行榜从几点开始统计(0-23)。填 0 代表按自然日(00:00)计算。",
+    "hint": "每日排行榜从几点开始统计，范围 0-23",
     "default": 0
   },
   "daily_start_hour": {
     "description": "作息判定起始小时",
     "type": "int",
-    "hint": "早起/熬夜判定界限(0-23)。填 5 代表凌晨 5 点前下线依然算作前一天深夜。",
+    "hint": "早起/熬夜判定分界，范围 0-23",
     "default": 5
   },
   "player_blacklist": {
     "description": "玩家黑名单",
     "type": "string",
-    "hint": "黑名单玩家ID，多个用逗号分隔（例如 Steve,Alex）。黑名单玩家会持续清理历史数据且不再记录时长。",
+    "hint": "多个玩家 ID 用逗号分隔，例如 Steve,Alex",
     "default": ""
+  },
+  "push_scheduler": {
+    "description": "定时推送设置",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "启用定时推送",
+        "type": "bool",
+        "default": false
+      },
+      "timezone": {
+        "description": "任务时区",
+        "type": "string",
+        "hint": "例如 Asia/Shanghai，留空时会回退到本地时区",
+        "default": "Asia/Shanghai"
+      },
+      "tasks": {
+        "description": "定时任务列表",
+        "type": "template_list",
+        "default": [],
+        "hint": "每个任务都是一个对象，可配置多个不同 cron、目标和命令组合",
+        "templates": {
+          "push_task": {
+            "name": "定时推送任务",
+            "hint": "配置一个定时执行的推送任务",
+            "items": {
+              "name": {
+                "description": "任务名称",
+                "type": "string",
+                "default": "daily_report",
+                "hint": "建议填写唯一名称，便于定位日志"
+              },
+              "enabled": {
+                "description": "启用此任务",
+                "type": "bool",
+                "default": true
+              },
+              "cron": {
+                "description": "Cron 表达式",
+                "type": "string",
+                "default": "0 9 * * *",
+                "hint": "格式为 分 时 日 月 周，例如 0 9 * * * 表示每天 09:00"
+              },
+              "targets": {
+                "description": "推送目标",
+                "type": "list",
+                "default": [],
+                "hint": "填写通过 /mc_push_bind 绑定的 alias 列表"
+              },
+              "commands": {
+                "description": "命令列表",
+                "type": "list",
+                "default": [
+                  "/mc_rank"
+                ],
+                "hint": "支持 /mc_rank、/mc_daily、/mc_season、/mc_me 玩家ID"
+              },
+              "merge_mode": {
+                "description": "发送模式",
+                "type": "string",
+                "options": [
+                  "merged",
+                  "separate"
+                ],
+                "labels": [
+                  "合并为一条",
+                  "逐条发送"
+                ],
+                "default": "merged"
+              },
+              "title": {
+                "description": "推送标题",
+                "type": "string",
+                "default": "",
+                "hint": "仅用于定时推送，可留空"
+              },
+              "separator": {
+                "description": "合并分隔符",
+                "type": "string",
+                "default": "\n\n----------\n\n",
+                "hint": "merge_mode=merged 时用于分隔多个命令结果"
+              },
+              "skip_if_empty": {
+                "description": "结果全空时跳过发送",
+                "type": "bool",
+                "default": true,
+                "hint": "当本次命令结果全部是“暂无数据”类内容时，不发送消息"
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

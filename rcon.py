@@ -1,6 +1,6 @@
 import asyncio
 import struct
-from typing import Optional, List
+
 from astrbot.api import logger
 
 
@@ -11,7 +11,7 @@ class MCRcon:
         self.rcon_port = rcon_port
         self.password = password
 
-    async def send_command(self, command: str) -> Optional[str]:
+    async def send_command(self, command: str) -> str | None:
         """Send a command via RCON and return the response."""
         reader, writer = None, None
         try:
@@ -53,7 +53,7 @@ class MCRcon:
             return None
         except ConnectionRefusedError:
             logger.error(
-                f"[MCDuration] RCON 连接被拒绝，请检查服端 server.properties 中 enable-rcon 是否为 true。"
+                "[MCDuration] RCON 连接被拒绝，请检查服端 server.properties 中 enable-rcon 是否为 true。"
             )
             return None
         except Exception as e:
@@ -65,7 +65,7 @@ class MCRcon:
                 writer.close()
                 await writer.wait_closed()
 
-    async def fetch_players(self) -> Optional[List[str]]:
+    async def fetch_players(self) -> list[str] | None:
         """Fetch player list using RCON /list."""
         resp = await self.send_command("list")
         if not resp:
