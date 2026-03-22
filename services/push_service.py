@@ -114,9 +114,7 @@ class PushService:
             return
 
         self.scheduler.start()
-        logger.info(
-            "[MCDuration] 推送调度程序已启动，包含 %s 个任务.", registered_jobs
-        )
+        logger.info("[MCDuration] 推送调度程序已启动，包含 %s 个任务.", registered_jobs)
 
     def shutdown(self) -> None:
         if self.scheduler and self.scheduler.running:

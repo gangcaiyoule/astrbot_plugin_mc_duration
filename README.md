@@ -2,7 +2,7 @@
 
 # 🎮 Minecraft 玩家时长统计
 
-[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.7.0-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
+[![Plugin Version](https://img.shields.io/badge/Latest_Version-v1.7.1-blue.svg?style=for-the-badge&color=4aac3d)](https://github.com/gangcaiyoule/astrbot_plugin_mc_duration)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-ff69b4?style=for-the-badge)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
@@ -11,6 +11,32 @@ _✨ 通过 RCON 协议实时监控 Minecraft 服务器在线玩家，记录游�
 <img src="https://count.getloli.com/@astrbot-plugin-mc-duration?name=astrbot-plugin-mc-duration&theme=minecraft&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" alt="count" />
 
 </div>
+
+<details>
+<summary><strong>项目结构说明</strong></summary>
+
+```text
+astrbot_plugin_mc_duration/
+  main.py                 # 只保留插件注册、命令入口、依赖组装
+  config.py               # 配置解析，PushTaskConfig / PluginSettings
+  models.py               # dataclass: SaveRecord / ReportResult / PushTaskConfig
+  message_style.py        # 统一管理消息中的 emoji 和文本风格
+  services/
+    tracker_service.py    # RCON轮询、在线玩家状态、增量记时
+    report_service.py     # rank/daily/season/player 四类报表
+    push_service.py       # 定时任务解析、调度、推送执行
+    save_service.py       # 存档创建/切换/删除相关流程
+  repositories/
+    database.py           # sqlite连接、建表、迁移
+    save_repository.py    # save 相关 CRUD
+    player_repository.py  # player_totals / sessions 相关 CRUD
+    push_repository.py    # push_bindings / push_task_state 相关 CRUD
+  rcon.py                 # RCON 客户端
+  storage.py              # 仓储门面，组合 repositories
+  utils.py                # 只放纯工具函数
+```
+
+</details>
 
 ## ✨ 功能特性
 
@@ -320,10 +346,14 @@ merge_mode: separate
 ### v1.7
 - 重构数据管理系统，使用sqlite
 - 实现不同存档间的数据隔离
+- 重构代码结构
 ## ❗ 注意事项
 
 > [!NOTE]
-> 插件默认每 30 秒连接一次 RCON 获取在线列表，流量消耗极低。所有统计数据存储在 `AstrBot/data/plugin_data/astrbot_plugin_mc_duration/data.json` 中。
+> 插件默认每 30 秒连接一次 RCON 获取在线列表，流量消耗极低。所有统计数据存储在 `AstrBot/data/plugin_data/astrbot_plugin_mc_duration/mc_duration.db` 中。
+
+> [!NOTE]
+> 为了以后更加便利的数据管理，本插件将数据从原来的data.json迁移到了mc_duration.db，可能会有少量数据丢失，请大家谅解，原始数据文件data.json并不会删除，也对其做了备份data.json.bak.<时间>。
 
 > [!WARNING]
 > 如果在云服务器或 Docker 环境运行，请确保 AstrBot 能访问到 Minecraft 服务器的 RCON 端口（需配置防火墙/安全组）。

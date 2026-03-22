@@ -4,6 +4,7 @@ import datetime
 import time
 from typing import Any
 
+from ..message_style import Emoji
 from ..models import ReportResult
 from ..storage import Storage
 from ..utils import (
@@ -42,7 +43,7 @@ class ReportService:
         }
 
     def _save_suffix(self) -> str:
-        return f" [存档: {self.storage.get_active_save().name}]"
+        return f" [{Emoji.STORAGE} 存档: {self.storage.get_active_save().name}]"
 
     def resolve_date_arg(
         self, date_str: str
@@ -54,7 +55,7 @@ class ReportService:
         if not target_date:
             return (
                 None,
-                f"日期格式无法识别: {date_str}。请尝试 8.5、2024-01-01、昨天。",
+                f"{Emoji.ERROR} 日期格式无法识别: {date_str}。请尝试 8.5、2024-01-01、昨天。",
             )
         return target_date, None
 
@@ -120,7 +121,7 @@ class ReportService:
 
         if not monthly_stats:
             return ReportResult(
-                f"本月暂时还没有玩家游玩数据。{self._save_suffix()}",
+                f"{Emoji.INFO} 本月暂时还没有玩家游玩数据。{self._save_suffix()}",
                 True,
             )
 
@@ -141,24 +142,29 @@ class ReportService:
                 achievements[last]["night"] += 1
 
         monthly_stats.sort(key=lambda item: int(item["sec"]), reverse=True)
-        lines = [f"本月赛季榜 ({now:%Y-%m}){self._save_suffix()}"]
+        lines = [f"{Emoji.SEASON} 本月赛季榜 ({now:%Y-%m}){self._save_suffix()}"]
         for index, item in enumerate(monthly_stats[:15], start=1):
             name = str(item["name"])
             seconds = int(item["sec"])
             badges = achievements.get(name, {})
             badge_items = []
             if badges.get("top"):
-                badge_items.append(f"日榜首 x{badges['top']}")
+                badge_items.append(f"{Emoji.TOP}日榜首 x{badges['top']}")
             if badges.get("early"):
-                badge_items.append(f"早起王 x{badges['early']}")
+                badge_items.append(f"{Emoji.EARLY}早起王 x{badges['early']}")
             if badges.get("night"):
-                badge_items.append(f"熬夜王 x{badges['night']}")
+                badge_items.append(f"{Emoji.NIGHT}熬夜王 x{badges['night']}")
             badge_suffix = f" [{' / '.join(badge_items)}]" if badge_items else ""
-            status = "在线" if self.tracker.get_session_start(name) else "离线"
+            status = Emoji.online_status(bool(self.tracker.get_session_start(name)))
             lines.append(
-                f"{index}. [{status}] {name}: {seconds_to_text(seconds)}{badge_suffix}"
+                f"{index}. {status} {name}: {seconds_to_text(seconds)}{badge_suffix}"
             )
-        lines.extend(["", "图例: 日榜首 / 早起王 / 熬夜王"])
+        lines.extend(
+            [
+                "",
+                f"图例: {Emoji.TOP}日榜首 / {Emoji.EARLY}早起王 / {Emoji.NIGHT}熬夜王",
+            ]
+        )
         return ReportResult("\n".join(lines))
 
     def build_daily_report(self, target_date: datetime.date) -> ReportResult:
@@ -181,16 +187,18 @@ class ReportService:
                     if not last_leave or session["end"] > last_leave[1]:
                         last_leave = (name, session["end"])
 
-        lines = [f"方块荣誉榜 ({target_date:%Y-%m-%d}){self._save_suffix()}"]
+        lines = [
+            f"{Emoji.DAILY} 方块荣誉榜 ({target_date:%Y-%m-%d}){self._save_suffix()}"
+        ]
         lines.append(
-            f"早起玩家: {first_join[0]} ({format_time(first_join[1])})"
+            f"{Emoji.EARLY} 早起玩家: {first_join[0]} ({format_time(first_join[1])})"
             if first_join
-            else "早起玩家: 暂无"
+            else f"{Emoji.EARLY} 早起玩家: 暂无"
         )
         lines.append(
-            f"熬夜玩家: {last_leave[0]} ({format_time(last_leave[1])})"
+            f"{Emoji.NIGHT} 熬夜玩家: {last_leave[0]} ({format_time(last_leave[1])})"
             if last_leave
-            else "熬夜玩家: 暂无"
+            else f"{Emoji.NIGHT} 熬夜玩家: 暂无"
         )
         return ReportResult("\n".join(lines), not first_join and not last_leave)
 
@@ -217,27 +225,27 @@ class ReportService:
                 ranked_data.append((name, seconds))
 
         ranked_data.sort(key=lambda item: item[1], reverse=True)
-        lines = [f"MC 排行榜 ({target_date:%Y-%m-%d}){self._save_suffix()}"]
+        lines = [
+            f"{Emoji.RANK} MC 排行榜 ({target_date:%Y-%m-%d}){self._save_suffix()}"
+        ]
         if not ranked_data:
-            lines.append("这一天还没有游玩记录。")
+            lines.append(f"{Emoji.INFO} 这一天还没有游玩记录。")
             return ReportResult("\n".join(lines), True)
 
         for index, (name, seconds) in enumerate(ranked_data[:10], start=1):
             status = ""
             if show_live_status:
-                status = (
-                    "[在线] " if self.tracker.get_session_start(name) else "[离线] "
-                )
+                status = f"{Emoji.online_status(bool(self.tracker.get_session_start(name)))} "
             lines.append(f"{index}. {status}{name}: {seconds_to_text(int(seconds))}")
 
         if len(ranked_data) == 1:
-            lines.append("\n今天只有一位玩家在守护这个世界。")
+            lines.append(f"\n{Emoji.SPARKLES} 今天只有一位玩家在守护这个世界。")
         elif len(ranked_data) == 2:
-            lines.append("\n二人世界，方块传情。")
+            lines.append(f"\n{Emoji.SPARKLES} 二人世界，方块传情。")
         elif len(ranked_data) < 5:
-            lines.append("\n小团队也有小团队的快乐。")
+            lines.append(f"\n{Emoji.SPARKLES} 小团队也有小团队的快乐。")
         else:
-            lines.append("\n今天服务器很热闹，大家都很爱 MC。")
+            lines.append(f"\n{Emoji.SPARKLES} 今天服务器很热闹，大家都很爱 MC。")
         return ReportResult("\n".join(lines))
 
     def build_total_rank_report(self) -> ReportResult:
@@ -248,24 +256,26 @@ class ReportService:
                 ranked_data.append((name, seconds))
 
         ranked_data.sort(key=lambda item: item[1], reverse=True)
-        lines = [f"MC 总榜{self._save_suffix()}"]
+        lines = [f"{Emoji.TOTAL_RANK} MC 总榜{self._save_suffix()}"]
         if not ranked_data:
-            lines.append("当前存档还没有累计游玩记录。")
+            lines.append(f"{Emoji.INFO} 当前存档还没有累计游玩记录。")
             return ReportResult("\n".join(lines), True)
 
         for index, (name, seconds) in enumerate(ranked_data[:15], start=1):
-            status = "[在线]" if self.tracker.get_session_start(name) else "[离线]"
+            status = Emoji.online_status(bool(self.tracker.get_session_start(name)))
             lines.append(f"{index}. {status} {name}: {seconds_to_text(seconds)}")
 
         return ReportResult("\n".join(lines))
 
     def build_player_report(self, player: str) -> ReportResult:
         if self._is_blacklisted(player):
-            return ReportResult(f"玩家 {player} 在黑名单中，当前不展示统计数据。")
+            return ReportResult(
+                f"{Emoji.ERROR} 玩家 {player} 在黑名单中，当前不展示统计数据。"
+            )
 
         data = self.storage.get_player(player)
         if not data:
-            return ReportResult(f"未找到玩家 {player} 的记录。")
+            return ReportResult(f"{Emoji.ERROR} 未找到玩家 {player} 的记录。")
 
         start_of_day = (
             datetime.datetime.now()
@@ -283,22 +293,22 @@ class ReportService:
 
         join_times = len(today_sessions)
         if join_times >= 5:
-            comment = "今天进进出出的次数有点多，服务器都记住你了。"
+            comment = f"{Emoji.SPARKLES} 今天进进出出的次数有点多，服务器都记住你了。"
         elif join_times >= 3:
-            comment = "今天状态不错，来来回回都很积极。"
+            comment = f"{Emoji.SPARKLES} 今天状态不错，来来回回都很积极。"
         elif join_times == 2:
-            comment = "进退有度，是个成熟玩家。"
+            comment = f"{Emoji.SPARKLES} 进退有度，是个成熟玩家。"
         elif join_times == 1:
-            comment = "一次上线，往往就是一整段冒险。"
+            comment = f"{Emoji.SPARKLES} 一次上线，往往就是一整段冒险。"
         else:
-            comment = "今天还没看到你上线，服务器正在等你。"
+            comment = f"{Emoji.SPARKLES} 今天还没看到你上线，服务器正在等你。"
 
         lines = [
-            f"{player} 的统计{self._save_suffix()}",
-            f"累计: {seconds_to_text(data.get('total_seconds', 0))}",
-            "今日详情: " + "、".join(today_sessions)
+            f"{Emoji.PLAYER} {player} 的统计{self._save_suffix()}",
+            f"{Emoji.INFO} 累计: {seconds_to_text(data.get('total_seconds', 0))}",
+            f"{Emoji.DAILY} 今日详情: " + "、".join(today_sessions)
             if today_sessions
-            else "今日暂无记录",
+            else f"{Emoji.DAILY} 今日暂无记录",
             "",
             comment,
         ]
@@ -338,6 +348,8 @@ class ReportService:
             return self.build_season_report()
         if command_name == "mc_me":
             if not argument:
-                return ReportResult("定时任务中的 /mc_me 必须显式填写玩家 ID。")
+                return ReportResult(
+                    f"{Emoji.ERROR} 定时任务中的 /mc_me 必须显式填写玩家 ID。"
+                )
             return self.build_player_report(argument)
-        return ReportResult(f"不支持的定时命令: {command_text}")
+        return ReportResult(f"{Emoji.ERROR} 不支持的定时命令: {command_text}")

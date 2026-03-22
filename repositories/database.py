@@ -188,9 +188,7 @@ class Database:
 
             conn.commit()
             self._backup_legacy_data_file()
-            logger.info(
-                "[MCDuration] 将遗留JSON数据迁移到SQLite保存存储中."
-            )
+            logger.info("[MCDuration] 将遗留JSON数据迁移到SQLite保存存储中.")
 
     def _backup_legacy_data_file(self) -> None:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")

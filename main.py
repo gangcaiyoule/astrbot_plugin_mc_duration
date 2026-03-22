@@ -7,6 +7,7 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
 from .config import PluginSettings
+from .message_style import Emoji
 from .rcon import MCRcon
 from .services import PushService, ReportService, SaveService, TrackerService
 from .storage import Storage
@@ -89,21 +90,23 @@ class MCDurationPlugin(Star):
     @filter.command("mc_stat_on")
     async def cmd_on(self, event: AstrMessageEvent):
         if not self._is_admin(event):
-            yield event.plain_result("只有管理员可以操作。")
+            yield event.plain_result(f"{Emoji.ERROR} 只有管理员可以操作。")
             return
         if self.tracker_service.is_running():
-            yield event.plain_result("监控已经在运行中了。")
+            yield event.plain_result(f"{Emoji.INFO} 监控已经在运行中了。")
             return
         self.tracker_service.start()
-        yield event.plain_result(f"监控已开启 (interval={self.settings.interval}s)")
+        yield event.plain_result(
+            f"{Emoji.SUCCESS} 监控已开启 (interval={self.settings.interval}s)"
+        )
 
     @filter.command("mc_stat_off")
     async def cmd_off(self, event: AstrMessageEvent):
         if not self._is_admin(event):
-            yield event.plain_result("只有管理员可以操作。")
+            yield event.plain_result(f"{Emoji.ERROR} 只有管理员可以操作。")
             return
         await self.tracker_service.stop()
-        yield event.plain_result("监控已停止。")
+        yield event.plain_result(f"{Emoji.SUCCESS} 监控已停止。")
 
     @filter.command("mc_rank")
     async def cmd_rank(self, event: AstrMessageEvent, date_str: str = ""):
@@ -134,13 +137,13 @@ class MCDurationPlugin(Star):
         self, event: AstrMessageEvent, action: str = "", value: str = ""
     ):
         if not self._is_admin(event):
-            yield event.plain_result("只有管理员可以操作。")
+            yield event.plain_result(f"{Emoji.ERROR} 只有管理员可以操作。")
             return
 
         normalized_action = action.strip()
         if not normalized_action:
             yield event.plain_result(
-                "用法:\n"
+                f"{Emoji.INFO} 用法:\n"
                 "/mc_push_bind <alias> 绑定当前会话\n"
                 "/mc_push_bind list 查看已绑定会话\n"
                 "/mc_push_bind del <alias> 删除绑定"
@@ -151,9 +154,9 @@ class MCDurationPlugin(Star):
         if lowered == "list":
             bindings = self.push_service.get_bindings()
             if not bindings:
-                yield event.plain_result("当前还没有已绑定的推送会话。")
+                yield event.plain_result(f"{Emoji.INFO} 当前还没有已绑定的推送会话。")
                 return
-            lines = ["已绑定推送会话:"]
+            lines = [f"{Emoji.PUSH} 已绑定推送会话:"]
             for alias, session in bindings.items():
                 lines.append(f"- {alias}: {session}")
             yield event.plain_result("\n".join(lines))
@@ -162,39 +165,41 @@ class MCDurationPlugin(Star):
         if lowered in {"del", "delete", "remove"}:
             alias = self.push_service.normalize_alias(value)
             if not alias:
-                yield event.plain_result("请提供要删除的 alias。")
+                yield event.plain_result(f"{Emoji.ERROR} 请提供要删除的 alias。")
                 return
             if self.push_service.delete_binding(alias):
-                yield event.plain_result(f"已删除推送绑定: {alias}")
+                yield event.plain_result(f"{Emoji.SUCCESS} 已删除推送绑定: {alias}")
             else:
-                yield event.plain_result(f"未找到 alias: {alias}")
+                yield event.plain_result(f"{Emoji.ERROR} 未找到 alias: {alias}")
             return
 
         alias = self.push_service.normalize_alias(normalized_action)
         session = event.unified_msg_origin
         if not alias:
-            yield event.plain_result("alias 不能为空。")
+            yield event.plain_result(f"{Emoji.ERROR} alias 不能为空。")
             return
         if not self.push_service.supports_proactive_session(session):
-            yield event.plain_result("当前平台不支持主动消息，无法绑定推送目标。")
+            yield event.plain_result(
+                f"{Emoji.ERROR} 当前平台不支持主动消息，无法绑定推送目标。"
+            )
             return
 
         previous = self.push_service.bind_alias(alias, session)
         if previous and previous != session:
             yield event.plain_result(
-                f"已更新推送绑定: {alias}\n旧会话: {previous}\n新会话: {session}"
+                f"{Emoji.SUCCESS} 已更新推送绑定: {alias}\n旧会话: {previous}\n新会话: {session}"
             )
         else:
             yield event.plain_result(
-                f"已绑定当前会话到 alias: {alias}\n会话 ID: {session}"
+                f"{Emoji.SUCCESS} 已绑定当前会话到 alias: {alias}\n会话 ID: {session}"
             )
 
     @filter.command("mc_save_list")
     async def cmd_save_list(self, event: AstrMessageEvent):
         active_id = self.storage.get_active_save().save_id
-        lines = ["存档列表:"]
+        lines = [f"{Emoji.STORAGE} 存档列表:"]
         for save in self.storage.list_saves():
-            marker = "*" if save.save_id == active_id else "-"
+            marker = Emoji.SPARKLES if save.save_id == active_id else "•"
             lines.append(
                 f"{marker} {save.name} [{save.save_id[:8]}] 玩家 {save.player_count} 人，会话 {save.session_count} 条"
             )
@@ -204,63 +209,67 @@ class MCDurationPlugin(Star):
     async def cmd_save_current(self, event: AstrMessageEvent):
         active = self.storage.get_active_save()
         yield event.plain_result(
-            f"当前存档: {active.name}\nID: {active.save_id}\n创建时间: {active.created_at}"
+            f"{Emoji.STORAGE} 当前存档: {active.name}\nID: {active.save_id}\n创建时间: {active.created_at}"
         )
 
     @filter.command("mc_save_create")
     async def cmd_save_create(self, event: AstrMessageEvent, name: str = ""):
         if not self._is_admin(event):
-            yield event.plain_result("只有管理员可以操作。")
+            yield event.plain_result(f"{Emoji.ERROR} 只有管理员可以操作。")
             return
         if not name.strip():
-            yield event.plain_result("用法: /mc_save_create <存档名>")
+            yield event.plain_result(f"{Emoji.INFO} 用法: /mc_save_create <存档名>")
             return
         try:
             save = await self.save_service.create_and_switch(name)
         except ValueError as exc:
-            yield event.plain_result(str(exc))
+            yield event.plain_result(f"{Emoji.ERROR} {exc}")
             return
         yield event.plain_result(
-            f"已创建并切换到新存档: {save.name}\nID: {save.save_id}"
+            f"{Emoji.SUCCESS} 已创建并切换到新存档: {save.name}\nID: {save.save_id}"
         )
 
     @filter.command("mc_save_switch")
     async def cmd_save_switch(self, event: AstrMessageEvent, identifier: str = ""):
         if not self._is_admin(event):
-            yield event.plain_result("只有管理员可以操作。")
+            yield event.plain_result(f"{Emoji.ERROR} 只有管理员可以操作。")
             return
 
         target = identifier.strip()
         if not target:
-            yield event.plain_result("用法: /mc_save_switch <存档名或ID>")
+            yield event.plain_result(f"{Emoji.INFO} 用法: /mc_save_switch <存档名或ID>")
             return
 
         resolved = self.storage.resolve_save(target)
         if not resolved:
-            yield event.plain_result(f"未找到存档: {target}")
+            yield event.plain_result(f"{Emoji.ERROR} 未找到存档: {target}")
             return
         if resolved.save_id == self.storage.get_active_save().save_id:
-            yield event.plain_result(f"当前已经在存档 {resolved.name}。")
+            yield event.plain_result(f"{Emoji.INFO} 当前已经在存档 {resolved.name}。")
             return
 
         save = await self.save_service.switch(resolved.save_id)
-        yield event.plain_result(f"已切换到存档: {save.name}\nID: {save.save_id}")
+        yield event.plain_result(
+            f"{Emoji.SUCCESS} 已切换到存档: {save.name}\nID: {save.save_id}"
+        )
 
     @filter.command("mc_save_delete")
     async def cmd_save_delete(
         self, event: AstrMessageEvent, identifier: str = "", confirm: str = ""
     ):
         if not self._is_admin(event):
-            yield event.plain_result("只有管理员可以操作。")
+            yield event.plain_result(f"{Emoji.ERROR} 只有管理员可以操作。")
             return
 
         target = identifier.strip()
         if not target:
-            yield event.plain_result("用法: /mc_save_delete <存档名或ID> confirm")
+            yield event.plain_result(
+                f"{Emoji.INFO} 用法: /mc_save_delete <存档名或ID> confirm"
+            )
             return
         if confirm.strip().lower() != "confirm":
             yield event.plain_result(
-                f"该操作会永久删除存档 {target} 的全部数据。\n"
+                f"{Emoji.WARNING} 该操作会永久删除存档 {target} 的全部数据。\n"
                 f"请使用 /mc_save_delete {target} confirm 确认执行。"
             )
             return
@@ -268,13 +277,13 @@ class MCDurationPlugin(Star):
         try:
             save = await self.save_service.delete_save(target)
         except LookupError:
-            yield event.plain_result(f"未找到存档: {target}")
+            yield event.plain_result(f"{Emoji.ERROR} 未找到存档: {target}")
             return
         except ValueError as exc:
-            yield event.plain_result(str(exc))
+            yield event.plain_result(f"{Emoji.ERROR} {exc}")
             return
 
-        yield event.plain_result(f"已删除存档: {save.name}")
+        yield event.plain_result(f"{Emoji.SUCCESS} 已删除存档: {save.name}")
 
     @filter.command("mc_save_player_delete")
     async def cmd_save_player_delete(
@@ -285,16 +294,16 @@ class MCDurationPlugin(Star):
         confirm: str = "",
     ):
         if not self._is_admin(event):
-            yield event.plain_result("只有管理员可以操作。")
+            yield event.plain_result(f"{Emoji.ERROR} 只有管理员可以操作。")
             return
         if not save_identifier.strip() or not player_name.strip():
             yield event.plain_result(
-                "用法: /mc_save_player_delete <存档名或ID> <玩家名> confirm"
+                f"{Emoji.INFO} 用法: /mc_save_player_delete <存档名或ID> <玩家名> confirm"
             )
             return
         if confirm.strip().lower() != "confirm":
             yield event.plain_result(
-                f"该操作会永久删除玩家 {player_name} 在存档 {save_identifier} 中的数据。\n"
+                f"{Emoji.WARNING} 该操作会永久删除玩家 {player_name} 在存档 {save_identifier} 中的数据。\n"
                 f"请使用 /mc_save_player_delete {save_identifier} {player_name} confirm 确认执行。"
             )
             return
@@ -305,16 +314,16 @@ class MCDurationPlugin(Star):
                 player_name.strip(),
             )
         except LookupError:
-            yield event.plain_result(f"未找到存档: {save_identifier}")
+            yield event.plain_result(f"{Emoji.ERROR} 未找到存档: {save_identifier}")
             return
 
         if deleted:
             yield event.plain_result(
-                f"已删除玩家 {player_name} 在存档 {save.name} 中的数据。"
+                f"{Emoji.SUCCESS} 已删除玩家 {player_name} 在存档 {save.name} 中的数据。"
             )
         else:
             yield event.plain_result(
-                f"未找到玩家 {player_name} 在存档 {save_identifier} 中的数据。"
+                f"{Emoji.ERROR} 未找到玩家 {player_name} 在存档 {save_identifier} 中的数据。"
             )
 
     async def terminate(self):
