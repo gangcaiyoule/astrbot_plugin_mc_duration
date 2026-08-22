@@ -67,7 +67,7 @@ class MCRcon:
 
     async def fetch_players(self) -> list[str] | None:
         """Fetch player list using RCON /list."""
-        resp = await self.send_command("list")
+        resp = await self.send_command("minecraft:list")
         if not resp:
             return None
 
